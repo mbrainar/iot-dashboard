@@ -12,17 +12,31 @@ displays them on a web dashboard.
 
 ## 1. Run the server
 
+This stack expects an existing external Docker network that your Traefik
+instance is also attached to, named `proxy`. Create it once if it doesn't
+already exist:
+
+```bash
+docker network create proxy
+```
+
+Then:
+
 ```bash
 docker compose up -d --build
 ```
 
-The dashboard is at `http://<server-host>:8080/`. Data persists in the
-`iot-data` Docker volume (SQLite file), so it survives container restarts.
+No host ports are published directly — Traefik routes to the container over
+the `proxy` network and terminates on port 80 (entrypoint `web`) for
+`iot-dashboard.labzs.com`, both the dashboard and the `/api/checkin` /
+`/api/devices` endpoints. Data persists in the `iot-data` Docker volume
+(SQLite file), so it survives container restarts.
 
 Configuration (edit `docker-compose.yml`):
 
 - `API_KEY` — if set, devices must send this value in an `X-API-Key` header on check-in. Leave blank to allow unauthenticated check-ins (fine for a trusted LAN).
 - `STALE_AFTER_MINUTES` — a device shows as offline (red dot) if it hasn't checked in within this many minutes. Default 10.
+- Traefik `labels` — update the `Host()` rule, `entrypoints`, and `traefik.docker.network` if your Traefik setup uses different values than `iot-dashboard.labzs.com` / `web` / `proxy`.
 
 ## 2. Point Windows devices at it
 
@@ -30,7 +44,7 @@ Copy the `scripts/` folder to each Windows machine (or a shared location),
 then from an **elevated** PowerShell prompt:
 
 ```powershell
-.\register_task.ps1 -ApiUrl "http://<server-host>:8080/api/checkin" -IntervalMinutes 5
+.\register_task.ps1 -ApiUrl "http://iot-dashboard.labzs.com/api/checkin" -IntervalMinutes 5
 ```
 
 Add `-ApiKey "yourkey"` if you set `API_KEY` on the server. This registers a
@@ -40,7 +54,7 @@ immediately and continuing across reboots.
 Run a one-off check-in manually to test it first:
 
 ```powershell
-.\checkin.ps1 -ApiUrl "http://<server-host>:8080/api/checkin"
+.\checkin.ps1 -ApiUrl "http://iot-dashboard.labzs.com/api/checkin"
 ```
 
 ### Plain curl.exe equivalent
@@ -48,7 +62,7 @@ Run a one-off check-in manually to test it first:
 If you'd rather not use the PowerShell script, `curl.exe` ships with Windows 10/11:
 
 ```bat
-curl.exe -s -X POST "http://<server-host>:8080/api/checkin" ^
+curl.exe -s -X POST "http://iot-dashboard.labzs.com/api/checkin" ^
   -H "Content-Type: application/json" ^
   -d "{\"hostname\":\"%COMPUTERNAME%\",\"ip_address\":\"<fill-in>\",\"device_time\":\"%date% %time%\"}"
 ```

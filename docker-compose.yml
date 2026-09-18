@@ -2,8 +2,6 @@ services:
   web:
     build: .
     container_name: iot-dashboard
-    ports:
-      - "8080:5000"
     volumes:
       - iot-data:/data
     environment:
@@ -13,6 +11,18 @@ services:
       # A device is shown as offline after this many minutes without a check-in.
       STALE_AFTER_MINUTES: "10"
     restart: unless-stopped
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.iot-dashboard.rule=Host(`iot-dashboard.labzs.com`)"
+      - "traefik.http.routers.iot-dashboard.entrypoints=web"
+      - "traefik.http.services.iot-dashboard.loadbalancer.server.port=5000"
+
+networks:
+  proxy:
+    external: true
 
 volumes:
   iot-data:
