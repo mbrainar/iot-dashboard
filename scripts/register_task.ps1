@@ -44,7 +44,11 @@ $argumentList = "-NoProfile -ExecutionPolicy Bypass -File `"$checkinScript`" -Ap
 if ($ApiKey) { $argumentList += " -ApiKey `"$ApiKey`"" }
 
 $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $argumentList
-$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes $IntervalMinutes) -RepetitionDuration ([TimeSpan]::MaxValue)
+# Task Scheduler's trigger XML has no "repeat forever" option, and
+# [TimeSpan]::MaxValue overflows its duration schema (fails with "task XML
+# contains a value which is incorrectly formatted or out of range"). Use a
+# long-but-valid duration instead -- effectively indefinite for this purpose.
+$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes $IntervalMinutes) -RepetitionDuration (New-TimeSpan -Days 3650)
 $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
 
