@@ -1,6 +1,7 @@
 services:
   web:
     build: .
+    image: iot-dashboard:latest
     container_name: iot-dashboard
     volumes:
       - iot-data:/data
