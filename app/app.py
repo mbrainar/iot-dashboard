@@ -1,0 +1,165 @@
+import os
+
+from flask import Flask, abort, jsonify, render_template, request
+
+from models import CheckIn, db, utcnow
+
+API_KEY = os.environ.get("API_KEY", "").strip()
+STALE_MINUTES = int(os.environ.get("STALE_AFTER_MINUTES", "10"))
+DB_PATH = os.environ.get("DB_PATH", "/data/iot.db")
+PER_PAGE = 25
+
+
+def create_app():
+    app = Flask(__name__)
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_PATH}"
+    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    db.init_app(app)
+
+    with app.app_context():
+        os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+        db.create_all()
+
+    register_routes(app)
+    return app
+
+
+def humanize_delta(delta_seconds: float) -> str:
+    if delta_seconds < 0:
+        delta_seconds = 0
+    seconds = int(delta_seconds)
+    if seconds < 60:
+        return f"{seconds}s ago"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes}m ago"
+    hours = minutes // 60
+    if hours < 24:
+        remaining_minutes = minutes % 60
+        return f"{hours}h {remaining_minutes}m ago"
+    days = hours // 24
+    remaining_hours = hours % 24
+    return f"{days}d {remaining_hours}h ago"
+
+
+def latest_checkins():
+    """One row per hostname, most recent checkin only."""
+    subq = (
+        db.session.query(
+            CheckIn.hostname, db.func.max(CheckIn.received_at).label("max_received")
+        )
+        .group_by(CheckIn.hostname)
+        .subquery()
+    )
+    rows = (
+        db.session.query(CheckIn)
+        .join(
+            subq,
+            db.and_(
+                CheckIn.hostname == subq.c.hostname,
+                CheckIn.received_at == subq.c.max_received,
+            ),
+        )
+        .order_by(CheckIn.hostname.asc())
+        .all()
+    )
+    return rows
+
+
+def serialize_device_row(row: CheckIn):
+    now = utcnow()
+    age = (now - row.received_at).total_seconds()
+    return {
+        "hostname": row.hostname,
+        "ip_address": row.ip_address,
+        "device_time": row.device_time_raw,
+        "received_at": row.received_at.isoformat() + "Z",
+        "time_since": humanize_delta(age),
+        "age_seconds": age,
+        "online": age <= STALE_MINUTES * 60,
+    }
+
+
+def register_routes(app: Flask):
+    @app.get("/")
+    def dashboard():
+        rows = latest_checkins()
+        devices = [serialize_device_row(r) for r in rows]
+        return render_template(
+            "dashboard.html", devices=devices, stale_minutes=STALE_MINUTES
+        )
+
+    @app.get("/api/devices")
+    def api_devices():
+        rows = latest_checkins()
+        return jsonify([serialize_device_row(r) for r in rows])
+
+    @app.get("/device/<hostname>")
+    def device_detail(hostname):
+        page = request.args.get("page", 1, type=int)
+        query = (
+            CheckIn.query.filter_by(hostname=hostname)
+            .order_by(CheckIn.received_at.desc())
+        )
+        pagination = query.paginate(page=page, per_page=PER_PAGE, error_out=False)
+        if pagination.total == 0:
+            abort(404, description=f"No check-ins found for host '{hostname}'")
+        checkins = [
+            {
+                "ip_address": c.ip_address,
+                "device_time": c.device_time_raw,
+                "received_at": c.received_at.isoformat() + "Z",
+                "time_since": humanize_delta((utcnow() - c.received_at).total_seconds()),
+            }
+            for c in pagination.items
+        ]
+        return render_template(
+            "device.html",
+            hostname=hostname,
+            checkins=checkins,
+            pagination=pagination,
+        )
+
+    @app.post("/api/checkin")
+    def api_checkin():
+        if API_KEY:
+            supplied = request.headers.get("X-API-Key", "")
+            if supplied != API_KEY:
+                abort(401, description="Invalid or missing X-API-Key header")
+
+        data = request.get_json(silent=True) or request.form
+        if not hasattr(data, "get"):
+            abort(400, description="Request body must be a JSON object or form data")
+        hostname = (data.get("hostname") or "").strip()
+        ip_address = (data.get("ip_address") or request.remote_addr or "").strip()
+        device_time_raw = (data.get("device_time") or "").strip()
+
+        if not hostname:
+            abort(400, description="Field 'hostname' is required")
+        if not ip_address:
+            abort(400, description="Field 'ip_address' is required")
+        if not device_time_raw:
+            abort(400, description="Field 'device_time' is required")
+
+        checkin = CheckIn(
+            hostname=hostname,
+            ip_address=ip_address,
+            device_time_raw=device_time_raw,
+            received_at=utcnow(),
+        )
+        db.session.add(checkin)
+        db.session.commit()
+
+        return jsonify({"status": "ok", "checkin": checkin.to_dict()}), 201
+
+    @app.errorhandler(400)
+    @app.errorhandler(401)
+    @app.errorhandler(404)
+    def handle_error(err):
+        return jsonify({"error": err.description}), err.code
+
+
+app = create_app()
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)

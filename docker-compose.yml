@@ -1,0 +1,18 @@
+services:
+  web:
+    build: .
+    container_name: iot-dashboard
+    ports:
+      - "8080:5000"
+    volumes:
+      - iot-data:/data
+    environment:
+      # Optional shared secret devices must send as the X-API-Key header.
+      # Leave blank to accept check-ins with no auth.
+      API_KEY: ""
+      # A device is shown as offline after this many minutes without a check-in.
+      STALE_AFTER_MINUTES: "10"
+    restart: unless-stopped
+
+volumes:
+  iot-data:

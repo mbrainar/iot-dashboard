@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}{{ hostname }} &middot; Check-in History{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <h1>{{ hostname }}</h1>
+    <a href="{{ url_for('dashboard') }}" class="back-link">&larr; Back to dashboard</a>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>IP Address</th>
+        <th>Device Time</th>
+        <th>Received (server time)</th>
+        <th>Time Since</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in checkins %}
+      <tr>
+        <td>{{ c.ip_address }}</td>
+        <td>{{ c.device_time }}</td>
+        <td>{{ c.received_at }}</td>
+        <td>{{ c.time_since }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="pager">
+    {% if pagination.has_prev %}
+      <a href="{{ url_for('device_detail', hostname=hostname, page=pagination.prev_num) }}">&larr; Newer</a>
+    {% endif %}
+    <span>Page {{ pagination.page }} of {{ pagination.pages }}</span>
+    {% if pagination.has_next %}
+      <a href="{{ url_for('device_detail', hostname=hostname, page=pagination.next_num) }}">Older &rarr;</a>
+    {% endif %}
+  </div>
+{% endblock %}
