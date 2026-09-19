@@ -9,6 +9,7 @@ displays them on a web dashboard.
 - `Dockerfile`, `docker-compose.yml` — containerized deployment
 - `scripts/checkin.ps1` — run on each Windows "device", POSTs hostname/IP/time to the API
 - `scripts/register_task.ps1` — registers a Windows Scheduled Task that runs `checkin.ps1` on a timer
+- `scripts/checkin.sh`, `scripts/install_cron.sh` — Linux equivalents: check-in script and a cron installer
 
 ## 1. Run the server
 
@@ -55,6 +56,26 @@ Run a one-off check-in manually to test it first:
 
 ```powershell
 .\checkin.ps1 -ApiUrl "http://iot-dashboard.labzs.com/api/checkin"
+```
+
+### Linux (Ubuntu) devices
+
+Requires `curl` (`sudo apt-get install -y curl`). From the `scripts/` folder:
+
+```bash
+./install_cron.sh http://iot-dashboard.labzs.com/api/checkin 5
+```
+
+Add a third argument for the API key if you set `API_KEY` on the server
+(`./install_cron.sh <url> 5 yourkey`). This adds a cron entry to the current
+user's crontab that runs `checkin.sh` every 5 minutes. Re-running it replaces
+the existing entry, and `./install_cron.sh --remove` uninstalls it. Output goes
+to syslog: `journalctl -t iot-checkin -n 20`.
+
+Test a single check-in first:
+
+```bash
+./checkin.sh http://iot-dashboard.labzs.com/api/checkin
 ```
 
 ### Plain curl.exe equivalent
