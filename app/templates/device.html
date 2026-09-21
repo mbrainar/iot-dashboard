@@ -3,8 +3,22 @@
 {% block content %}
   <div class="page-head">
     <h1>{{ hostname }}</h1>
-    <a href="{{ url_for('dashboard') }}" class="back-link">&larr; Back to dashboard</a>
+    <div class="head-actions">
+      <a href="{{ url_for('dashboard') }}" class="back-link">&larr; Back to dashboard</a>
+      {% if device_ip %}
+      <details class="actions">
+        <summary>Actions &#9662;</summary>
+        <div class="menu">
+          <a href="{{ url_for('device_rdp', hostname=hostname) }}">RDP to {{ device_ip }}</a>
+          <a href="ssh://{{ device_ip }}" class="js-ssh" data-copy="ssh {{ device_ip }}">SSH to {{ device_ip }}</a>
+        </div>
+      </details>
+      {% else %}
+      <span class="hint">Actions unavailable (no valid IPv4 address on latest check-in)</span>
+      {% endif %}
+    </div>
   </div>
+  <p id="action-note" class="hint" hidden></p>
 
   <table>
     <thead>
@@ -36,4 +50,6 @@
       <a href="{{ url_for('device_detail', hostname=hostname, page=pagination.next_num) }}">Older &rarr;</a>
     {% endif %}
   </div>
+
+  <script src="{{ url_for('static', filename='device.js') }}"></script>
 {% endblock %}

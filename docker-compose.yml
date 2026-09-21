@@ -11,6 +11,8 @@ services:
       API_KEY: ""
       # A device is shown as offline after this many minutes without a check-in.
       STALE_AFTER_MINUTES: "10"
+      # Check-in history kept per device; older rows are deleted on each new check-in.
+      MAX_CHECKINS_PER_DEVICE: "300"
     restart: unless-stopped
     networks:
       - proxy

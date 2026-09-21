@@ -1,11 +1,15 @@
+import ipaddress
 import os
+import re
 
-from flask import Flask, abort, jsonify, render_template, request
+from flask import Flask, Response, abort, jsonify, render_template, request
+from sqlalchemy import delete, select
 
 from models import CheckIn, db, utcnow
 
 API_KEY = os.environ.get("API_KEY", "").strip()
 STALE_MINUTES = int(os.environ.get("STALE_AFTER_MINUTES", "10"))
+MAX_CHECKINS_PER_DEVICE = int(os.environ.get("MAX_CHECKINS_PER_DEVICE", "300"))
 DB_PATH = os.environ.get("DB_PATH", "/data/iot.db")
 PER_PAGE = 25
 
@@ -40,6 +44,28 @@ def humanize_delta(delta_seconds: float) -> str:
     days = hours // 24
     remaining_hours = hours % 24
     return f"{days}d {remaining_hours}h ago"
+
+
+def valid_ipv4(value):
+    """Returns the normalized IPv4 string, or None. Check-in data is client-supplied,
+    so anything used to build an SSH link or .rdp file must pass through this."""
+    try:
+        return str(ipaddress.IPv4Address(value))
+    except ValueError:
+        return None
+
+
+def prune_old_checkins(hostname):
+    """Keep only the newest MAX_CHECKINS_PER_DEVICE rows for this device."""
+    keep = (
+        select(CheckIn.id)
+        .where(CheckIn.hostname == hostname)
+        .order_by(CheckIn.received_at.desc(), CheckIn.id.desc())
+        .limit(MAX_CHECKINS_PER_DEVICE)
+    )
+    db.session.execute(
+        delete(CheckIn).where(CheckIn.hostname == hostname, CheckIn.id.not_in(keep))
+    )
 
 
 def latest_checkins():
@@ -113,11 +139,33 @@ def register_routes(app: Flask):
             }
             for c in pagination.items
         ]
+        latest = query.first()
         return render_template(
             "device.html",
             hostname=hostname,
             checkins=checkins,
             pagination=pagination,
+            device_ip=valid_ipv4(latest.ip_address),
+        )
+
+    @app.get("/device/<hostname>/rdp")
+    def device_rdp(hostname):
+        latest = (
+            CheckIn.query.filter_by(hostname=hostname)
+            .order_by(CheckIn.received_at.desc(), CheckIn.id.desc())
+            .first()
+        )
+        if latest is None:
+            abort(404, description=f"No check-ins found for host '{hostname}'")
+        ip = valid_ipv4(latest.ip_address)
+        if ip is None:
+            abort(400, description="Latest check-in has no valid IPv4 address")
+        filename = re.sub(r"[^A-Za-z0-9._-]", "_", hostname) + ".rdp"
+        body = f"full address:s:{ip}\r\nprompt for credentials:i:1\r\n"
+        return Response(
+            body,
+            mimetype="application/x-rdp",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
 
     @app.post("/api/checkin")
@@ -148,6 +196,8 @@ def register_routes(app: Flask):
             received_at=utcnow(),
         )
         db.session.add(checkin)
+        db.session.flush()
+        prune_old_checkins(hostname)
         db.session.commit()
 
         return jsonify({"status": "ok", "checkin": checkin.to_dict()}), 201

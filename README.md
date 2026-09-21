@@ -37,6 +37,7 @@ Configuration (edit `docker-compose.yml`):
 
 - `API_KEY` — if set, devices must send this value in an `X-API-Key` header on check-in. Leave blank to allow unauthenticated check-ins (fine for a trusted LAN).
 - `STALE_AFTER_MINUTES` — a device shows as offline (red dot) if it hasn't checked in within this many minutes. Default 10.
+- `MAX_CHECKINS_PER_DEVICE` — only the newest N check-ins are kept for each device (default 300). Older rows are deleted whenever that device checks in, so an existing database is trimmed the next time each device reports.
 - Traefik `labels` — update the `Host()` rule, `entrypoints`, and `traefik.docker.network` if your Traefik setup uses different values than `iot-dashboard.labzs.com` / `web` / `proxy`.
 
 ## 2. Point Windows devices at it
@@ -113,7 +114,9 @@ Response: `201 Created` with the stored record, or `400`/`401` on error.
 ## Dashboard
 
 - `/` — one row per device: hostname, IP, last check-in (device-reported time), and time since last check-in (computed from server receive time, refreshes live). Click a hostname to see full history.
-- `/device/<hostname>` — paginated history of every check-in for that device.
+- `/device/<hostname>` — paginated history of the device's retained check-ins, with an **Actions** menu that uses the device's latest IPv4 address:
+  - **RDP** downloads a `.rdp` file (opens in mstsc / Microsoft Remote Desktop).
+  - **SSH** opens an `ssh://` link if your OS has a handler registered for it, and also copies `ssh <ip>` to the clipboard as a fallback. Browsers can't launch SSH directly, so on many machines you'll just paste the command into a terminal.
 
 ## Local development (without Docker)
 

@@ -90,6 +90,50 @@ a { color: var(--accent); }
 
 .empty { color: var(--muted); text-align: center; padding: 24px; }
 
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+details.actions { position: relative; }
+
+details.actions summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  font-size: 13px;
+  user-select: none;
+}
+details.actions summary::-webkit-details-marker { display: none; }
+details.actions[open] summary { border-color: var(--accent); }
+
+details.actions .menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  min-width: 190px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  z-index: 10;
+  overflow: hidden;
+}
+
+details.actions .menu a {
+  display: block;
+  padding: 9px 14px;
+  font-size: 13px;
+  color: var(--text);
+  text-decoration: none;
+}
+details.actions .menu a:hover { background: rgba(91, 140, 255, 0.12); }
+
+#action-note { margin: 0 0 12px; }
+
 .pager {
   margin-top: 16px;
   display: flex;
