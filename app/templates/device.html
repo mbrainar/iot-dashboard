@@ -5,20 +5,47 @@
     <h1>{{ hostname }}</h1>
     <div class="head-actions">
       <a href="{{ url_for('dashboard') }}" class="back-link">&larr; Back to dashboard</a>
-      {% if device_ip %}
       <details class="actions">
         <summary>Actions &#9662;</summary>
         <div class="menu">
+          {% if device_ip %}
           <a href="{{ url_for('device_rdp', hostname=hostname) }}">RDP to {{ device_ip }}</a>
-          <a href="ssh://{{ device_ip }}" class="js-ssh" data-copy="ssh {{ device_ip }}">SSH to {{ device_ip }}</a>
+          <a href="ssh://{{ device_ip }}" class="js-copy" data-copy="ssh {{ device_ip }}">SSH to {{ device_ip }}</a>
+          <button type="button" class="js-copy" data-copy="{{ device_ip }}">Copy IP address</button>
+          {% else %}
+          <span class="menu-note">RDP/SSH unavailable: no valid IPv4 on latest check-in</span>
+          {% endif %}
+          <a href="{{ url_for('device_history_csv', hostname=hostname) }}">Export history (CSV)</a>
+          <div class="divider"></div>
+          <button type="button" class="danger" data-confirm
+            data-title="Clear check-in history?"
+            data-message="Deletes {{ pagination.total - 1 }} older check-in(s) for {{ hostname }}. Only the most recent check-in is kept, so the device stays on the dashboard. This cannot be undone."
+            data-confirm-label="Clear history"
+            data-url="{{ url_for('device_clear', hostname=hostname) }}">Clear check-in history</button>
+          <button type="button" class="danger" data-confirm
+            data-title="Delete device?"
+            data-message="Permanently deletes {{ hostname }} and all {{ pagination.total }} of its check-ins. If the device is still running its check-in job it will reappear on its next check-in. This cannot be undone."
+            data-confirm-label="Delete device"
+            data-url="{{ url_for('device_delete', hostname=hostname) }}">Delete device</button>
         </div>
       </details>
-      {% else %}
-      <span class="hint">Actions unavailable (no valid IPv4 address on latest check-in)</span>
-      {% endif %}
     </div>
   </div>
+  {% if cleared is not none %}
+  <p class="notice">Cleared {{ cleared }} older check-in(s).</p>
+  {% endif %}
   <p id="action-note" class="hint" hidden></p>
+
+  <dialog id="confirm-dialog">
+    <form id="confirm-form" method="post">
+      <h2 id="confirm-title"></h2>
+      <p id="confirm-message"></p>
+      <div class="dialog-buttons">
+        <button type="button" id="confirm-cancel">Cancel</button>
+        <button type="submit" id="confirm-submit" class="danger-solid">Confirm</button>
+      </div>
+    </form>
+  </dialog>
 
   <table>
     <thead>

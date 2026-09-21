@@ -5,6 +5,10 @@
     <span class="hint">Offline if no check-in for {{ stale_minutes }} min &middot; auto-refreshes every 15s</span>
   </div>
 
+  {% if deleted %}
+  <p class="notice">Deleted device {{ deleted }}.</p>
+  {% endif %}
+
   <table id="device-table">
     <thead>
       <tr>

@@ -117,6 +117,11 @@ Response: `201 Created` with the stored record, or `400`/`401` on error.
 - `/device/<hostname>` — paginated history of the device's retained check-ins, with an **Actions** menu that uses the device's latest IPv4 address:
   - **RDP** downloads a `.rdp` file (opens in mstsc / Microsoft Remote Desktop).
   - **SSH** opens an `ssh://` link if your OS has a handler registered for it, and also copies `ssh <ip>` to the clipboard as a fallback. Browsers can't launch SSH directly, so on many machines you'll just paste the command into a terminal.
+  - **Copy IP address** and **Export history (CSV)** of the retained check-ins.
+  - **Clear check-in history** deletes every check-in except the most recent one (so the device stays on the dashboard). Asks for confirmation first.
+  - **Delete device** removes the device and all its check-ins. Asks for confirmation first. A device that is still running its check-in job will reappear on its next check-in, so stop the scheduled task/cron job on the device to remove it permanently.
+
+  Note that the dashboard has no login. Anyone who can reach it can use these destructive actions, and `API_KEY` only protects check-ins. The destructive endpoints reject cross-site form posts, but consider restricting access at Traefik (e.g. basic-auth or an IP allowlist middleware) if that matters.
 
 ## Local development (without Docker)
 
